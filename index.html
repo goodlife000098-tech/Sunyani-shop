@@ -74,7 +74,7 @@ a{color:inherit}
 </head>
 <body>
 <header>
-  <div class="brand"><h1>Sunyani Shop</h1><span class="tag">Shop from home</span><button class="chip" id="mg" onclick="mgBtn()">Owner login</button></div>
+  <div class="brand"><h1>Sunyani Shop</h1><span class="tag">Shop from home · v5</span><button class="chip" id="mg" onclick="mgBtn()">Owner login</button></div>
   <input class="search" id="q" type="search" placeholder="Search products" aria-label="Search products">
 </header>
 <main id="app"><div class="empty">Loading…</div></main>
@@ -84,7 +84,7 @@ a{color:inherit}
 <script>
 var CFG={url:"https://hpdhmrnnlyftautoyyyz.supabase.co",key:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwZGhtcm5ubHlmdGF1dG95eXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5NDg3ODIsImV4cCI6MjEwODUyNDc4Mn0.i5hmfJXfaHnONl8riJkQ18T2dYdkdO7lVNVgAIf0n0w",wa:"233549971535",fee:10};
 var sb=supabase.createClient(CFG.url,CFG.key);
-var MALLS=[],CATS=[],P=[],LB=null;
+var MALLS=[],CATS=[],AREAS=[],P=[],LB=null,SOLD={},SALES=null;
 var S={view:"shop",mall:0,cat:0,q:"",cart:{},user:null,tab:"items",edit:null,photos:null,del:null,err:"",done:null};
 var app=document.getElementById("app"),bar=document.getElementById("bar");
 var G=function(i){return document.getElementById(i)};
@@ -103,6 +103,7 @@ async function load(){
   var r=await Promise.all([sb.from("malls").select("*").order("id"),sb.from("categories").select("*").order("id"),sb.from("products").select("*").order("id",{ascending:false})]);
   if(r.some(function(x){return x.error})){S.err="Could not load the shop. Check your internet and refresh."}
   else{MALLS=r[0].data;CATS=r[1].data;P=r[2].data;S.err=""}
+  var ar=await sb.from("areas").select("*").order("name");AREAS=ar.error?[]:ar.data;
   draw();
 }
 
@@ -111,41 +112,43 @@ function pic(x){var L=x.photos||[];if(!L.length)return '<div class="pic" aria-hi
   return '<div class="gal"><div class="pic photo">'+L.map(function(u,i){return '<img loading="lazy" alt="Photo '+(i+1)+'" src="'+qa(u)+'" onclick="openLB('+x.id+','+i+')">'}).join("")+'</div>'+(L.length>1?'<span class="cnt">'+L.length+' photos · swipe</span>':'')+'</div>'}
 function shop(){
   if(S.err)return '<div class="empty">'+S.err+'</div>';
-  var h='<div class="chips">'+chip("All malls",!S.mall,"S.mall=0;draw()","mall")+MALLS.map(function(m){return chip(esc(m.name),S.mall===m.id,"S.mall="+m.id+";draw()","mall")}).join("")+'</div><div class="chips">'+chip("All",!S.cat,"S.cat=0;draw()")+CATS.map(function(c){return chip(esc(c.name),S.cat===c.id,"S.cat="+c.id+";draw()")}).join("")+'</div>';
+  var h='<div class="chips">'+chip("All",!S.cat,"S.cat=0;draw()")+CATS.map(function(c){return chip(esc(c.name),S.cat===c.id,"S.cat="+c.id+";draw()")}).join("")+'</div>';
   var L=P.filter(function(x){return (!S.mall||x.mall_id===S.mall)&&(!S.cat||x.category_id===S.cat)&&(!S.q||x.name.toLowerCase().indexOf(S.q)>-1)});
-  if(!L.length)return h+'<div class="empty">'+(P.length?'No products match. Try another mall or category.':'No items yet. Please check back soon.')+'</div>';
+  if(!L.length)return h+'<div class="empty">'+(P.length?'No products match. Try another category.':'No items yet. Please check back soon.')+'</div>';
   return h+'<div class="grid">'+L.map(function(x){var q=S.cart[x.id]||0;
-    return '<div class="card">'+pic(x)+'<b>'+esc(x.name)+'</b><span class="mall-name">'+esc(nmOf(MALLS,x.mall_id))+'</span><span class="price">'+$(x.price)+'</span>'+(q?qtyBox(x.id,q):'<button class="btn" onclick="add('+x.id+',1)">Add to cart</button>')+'</div>'}).join("")+'</div>';
+    return '<div class="card">'+pic(x)+'<b>'+esc(x.name)+'</b><span class="price">'+$(x.price)+'</span>'+(q?qtyBox(x.id,q):'<button class="btn" onclick="add('+x.id+',1)">Add to cart</button>')+'</div>'}).join("")+'</div>';
 }
 function cart(){
   var h='<h2>Your cart</h2>';
   if(!count())return h+'<div class="empty">Your cart is empty.</div><button class="btn" onclick="go(\'shop\')">Browse products</button>';
-  P.forEach(function(x){var q=S.cart[x.id];if(q)h+='<div class="row"><div><b>'+esc(x.name)+'</b><small>'+esc(nmOf(MALLS,x.mall_id))+' · '+$(x.price)+' each</small></div>'+qtyBox(x.id,q)+'</div>'});
-  return h+'<div class="row"><span>Items</span><span class="total">'+$(sub())+'</span></div><p class="note">Delivery fee is added at checkout.</p><button class="btn ghost" onclick="go(\'shop\')">Add more items</button>';
+  P.forEach(function(x){var q=S.cart[x.id];if(q)h+='<div class="row"><div><b>'+esc(x.name)+'</b><small>'+$(x.price)+' each</small></div>'+qtyBox(x.id,q)+'</div>'});
+  return h+'<div class="row"><span>Items</span><span class="total">'+$(sub())+'</span></div><p class="note">The delivery fee is agreed with you on WhatsApp after you order.</p><button class="btn ghost" onclick="go(\'shop\')">Add more items</button>';
 }
 function checkout(){
   return '<h2>Checkout</h2><label for="nm">Full name</label><input id="nm" autocomplete="name" maxlength="100">'+
   '<label for="ph">Phone number (for delivery calls)</label><input id="ph" type="tel" inputmode="tel" placeholder="024 000 0000" autocomplete="tel" maxlength="20">'+
-  '<label>Get your order</label><div class="opts"><label class="opt"><input type="radio" name="dl" value="deliver" checked onchange="fee()"> Deliver to me (+ '+$(CFG.fee)+')</label><label class="opt"><input type="radio" name="dl" value="pickup" onchange="fee()"> I will pick up at the mall (free)</label></div>'+
-  '<div id="addr"><label for="ad">Delivery address or landmark</label><input id="ad" placeholder="e.g. Near Sunyani Methodist Church, Estate" maxlength="300"></div>'+
-  '<label>Payment</label><div class="opts"><label class="opt"><input type="radio" name="pay" value="MoMo" checked> Mobile Money</label><label class="opt"><input type="radio" name="pay" value="Cash"> Pay on delivery or pickup</label></div>'+
-  '<div class="row" style="margin-top:14px"><span>Total</span><span class="total" id="tt"></span></div><div class="err" id="err" role="alert"></div>';
+  
+  '<div id="addr"><label for="ad">Delivery area and landmark</label><input id="ad" placeholder="e.g. Estate, near the Methodist Church" maxlength="300"><p class="note">The delivery fee is not included. We will agree it with you on WhatsApp.</p></div>'+
+  '<label>Payment</label><div class="opts"><label class="opt"><input type="radio" name="pay" value="MoMo" checked> Mobile Money</label><label class="opt"><input type="radio" name="pay" value="Cash"> Pay on delivery</label></div>'+
+  '<div class="row" style="margin-top:14px"><span>Items total</span><span class="total" id="tt"></span></div><div class="row"><span>Delivery fee</span><span>To be agreed</span></div><div class="err" id="err" role="alert"></div>';
 }
-function fee(){var d=document.querySelector('input[name="dl"]:checked').value==="deliver";G("addr").style.display=d?"block":"none";G("tt").textContent=$(sub()+(d?CFG.fee:0))}
+function areaBox(){return AREAS.length?'<label for="ar">Delivery area</label><select id="ar" onchange="fee()">'+AREAS.map(function(a){return '<option value="'+a.id+'">'+esc(a.name)+' - '+$(a.fee)+'</option>'}).join("")+'</select>':'<p class="note">Delivery fee: '+$(CFG.fee)+'</p>'}
+function curFee(){var el=G("ar");if(!AREAS.length||!el)return CFG.fee;var a=AREAS.find(function(x){return String(x.id)===el.value});return a?Number(a.fee):CFG.fee}
+function fee(){G("tt").textContent=$(sub())}
 async function place(){
-  var nme=G("nm").value.trim(),phn=G("ph").value.replace(/\s/g,""),d=document.querySelector('input[name="dl"]:checked').value==="deliver",ad=G("ad").value.trim(),pay=document.querySelector('input[name="pay"]:checked').value,e=G("err");
+  var nme=G("nm").value.trim(),phn=G("ph").value.replace(/\s/g,""),d=true,ad=G("ad").value.trim(),pay=document.querySelector('input[name="pay"]:checked').value,e=G("err");
   if(!nme){e.textContent="Enter your name.";return}
   if(!/^(\+?233|0)\d{9}$/.test(phn)){e.textContent="Enter a valid Ghana phone number, like 0240000000.";return}
   if(d&&!ad){e.textContent="Enter a delivery address or landmark.";return}
   G("pb").disabled=true;e.textContent="Sending…";
-  var items=P.filter(function(x){return S.cart[x.id]}).map(function(x){return {id:x.id,name:x.name,mall:nmOf(MALLS,x.mall_id),qty:S.cart[x.id],price:x.price}});
-  var no="SY-"+Math.floor(1000+Math.random()*9000),tot=sub()+(d?CFG.fee:0);
-  var r=await sb.from("orders").insert({code:no,customer:nme,phone:phn,delivery:d,address:d?ad:null,payment:pay,items:items,total:tot});
-  var msg="New order "+no+"\n"+items.map(function(i){return i.qty+" x "+i.name+" ("+i.mall+") - GH₵"+(i.price*i.qty)}).join("\n")+"\n"+(d?"Delivery fee: GH₵"+CFG.fee+"\n":"")+"Total: GH₵"+tot+"\nName: "+nme+"\nPhone: "+phn+"\n"+(d?"Deliver to: "+ad:"Pickup at the mall")+"\nPayment: "+pay;
+  var items=P.filter(function(x){return S.cart[x.id]}).map(function(x){return {id:x.id,name:x.name,qty:S.cart[x.id],price:x.price}});
+  var no="SY-"+Math.floor(1000+Math.random()*9000),tot=sub();
+  var r=await sb.from("orders").insert({code:no,customer:nme,phone:phn,delivery:d,address:ad,payment:pay,items:items,total:tot});
+  var msg="New order "+no+"\n"+items.map(function(i){return i.qty+" x "+i.name+" - GH₵"+(i.price*i.qty)}).join("\n")+"\n"+"Items total: GH₵"+tot+"\nDelivery fee: to be agreed"+"\nName: "+nme+"\nPhone: "+phn+"\n"+"Deliver to: "+ad+"\nPayment: "+pay;
   S.done={no:no,nm:nme,tot:tot,d:d,pay:pay,saved:!r.error,wa:"https://wa.me/"+CFG.wa+"?text="+encodeURIComponent(msg)};S.cart={};go("done");
 }
 function done(){var o=S.done;
-  return '<div class="done"><div class="big">✅</div><h2>Order '+o.no+' is ready</h2><p>Thank you, '+esc(o.nm)+'. Total: <b>'+$(o.tot)+'</b></p><p class="note">'+(o.d?'A rider will call you before delivery.':'The mall will call you when your order is ready.')+(o.pay==="MoMo"?' You will get a Mobile Money prompt to pay.':' Pay when you receive it.')+'</p>'+
+  return '<div class="done"><div class="big">✅</div><h2>Order '+o.no+' is ready</h2><p>Thank you, '+esc(o.nm)+'. Items total: <b>'+$(o.tot)+'</b></p><p class="note">'+'We will message you on WhatsApp to agree the delivery fee and arrange delivery.'+(o.pay==="MoMo"?' We will send Mobile Money payment details once the delivery fee is agreed.':' Pay when you receive it.')+'</p>'+
   '<a class="btn gold" style="display:block;text-decoration:none;margin:16px 0 6px" href="'+o.wa+'" target="_blank" rel="noopener">Send order on WhatsApp</a><p class="note">'+(o.saved?'Tap the button so the shop can confirm your order with you.':'Your order was not saved online. Please tap the button to send it.')+'</p><button class="btn ghost" onclick="S.done=null;go(\'shop\')">Keep shopping</button></div>';
 }
 
@@ -167,12 +170,13 @@ function drawLB(){var n=LB.L.length,h='<div class="lbtop"><span>'+esc(LB.t)+(n>1
 function mgBtn(){S.edit=null;S.del=null;if(!S.user)return go("login");go(S.view==="admin"?"shop":"admin")}
 function login(){return '<h2>Owner login</h2><label for="em">Email</label><input id="em" type="email" autocomplete="username"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="err" id="le" role="alert"></div><div class="acts"><button class="btn" onclick="doLogin()">Log in</button><button class="btn ghost" onclick="go(\'shop\')">Cancel</button></div>'}
 async function doLogin(){var r=await sb.auth.signInWithPassword({email:G("em").value.trim(),password:G("pw").value});if(r.error){G("le").textContent="Wrong email or password.";return}S.user=r.data.user;S.tab="items";go("admin")}
-async function doLogout(){await sb.auth.signOut();S.user=null;go("shop")}
+async function doLogout(){await sb.auth.signOut();S.user=null;SALES=null;SOLD={};go("shop")}
 function admin(){
-  var h='<h2>Manage shop</h2><div class="chips">'+[["items","Items"],["cats","Categories"],["malls","Malls"],["orders","Orders"]].map(function(t){return chip(t[1],S.tab===t[0],"S.tab='"+t[0]+"';S.edit=null;draw()")}).join("")+chip("Log out",false,"doLogout()")+'</div>';
+  var h='<h2>Manage shop</h2><div class="chips">'+[["items","Items"],["sales","Sales"],["orders","Orders"],["cats","Categories"]].map(function(t){return chip(t[1],S.tab===t[0],"S.tab='"+t[0]+"';S.edit=null;draw()")}).join("")+chip("Log out",false,"doLogout()")+'</div>';
   if(S.tab==="items")return h+items();
+  if(S.tab==="sales")return h+'<div id="sl" class="empty">Loading…</div>';
   if(S.tab==="orders")return h+'<div id="ol" class="empty">Loading…</div>';
-  return h+(S.tab==="cats"?names("categories",CATS):names("malls",MALLS));
+  return h+names("categories",CATS);
 }
 var opts=function(L,sel){return L.map(function(o){return '<option value="'+o.id+'"'+(o.id===sel?' selected':'')+'>'+esc(o.name)+'</option>'}).join("")};
 var thumbs=function(){return S.photos.map(function(p,i){return '<span class="pw"><img class="thumb big" alt="" src="'+qa(p.url)+'"><button class="rm" aria-label="Remove photo" onclick="rmPhoto('+i+')">×</button></span>'}).join("")};
@@ -183,10 +187,13 @@ function items(){
   if(S.edit!==null){
     var x=P.find(function(y){return y.id===S.edit})||{name:"",price:"",mall_id:(MALLS[0]||{}).id,category_id:(CATS[0]||{}).id,photos:[]};
     if(S.photos===null)S.photos=(x.photos||[]).map(function(u){return {url:u}});
-    return '<label for="an">Item name</label><input id="an" maxlength="120" value="'+qa(x.name)+'"><label for="ap">Price (GH₵)</label><input id="ap" type="number" inputmode="decimal" min="0" value="'+qa(x.price)+'"><label for="am">Mall</label><select id="am">'+opts(MALLS,x.mall_id)+'</select><label for="ac">Category</label><select id="ac">'+opts(CATS,x.category_id)+'</select><label for="af">Photos (up to 6, the first is the main photo)</label><div id="ph">'+thumbs()+'</div><input id="af" type="file" accept="image/*" multiple onchange="addPhotos(this)"><div class="err" id="ae" role="alert"></div><div class="acts"><button class="btn" id="sv" onclick="saveItem()">Save item</button><button class="btn ghost" onclick="S.edit=null;draw()">Cancel</button>'+(S.edit?'<button class="btn ghost" onclick="delItem('+S.edit+')">'+(S.del===S.edit?'Tap again to delete':'Delete')+'</button>':'')+'</div>';
+    return '<label for="an">Item name</label><input id="an" maxlength="120" value="'+qa(x.name)+'"><label for="ap">Price (GH₵)</label><input id="ap" type="number" inputmode="decimal" min="0" value="'+qa(x.price)+'"><label for="ac">Category</label><select id="ac">'+opts(CATS,x.category_id)+'</select><label for="af">Photos (up to 6, the first is the main photo)</label><div id="ph">'+thumbs()+'</div><input id="af" type="file" accept="image/*" multiple onchange="addPhotos(this)"><div class="err" id="ae" role="alert"></div><div class="acts"><button class="btn" id="sv" onclick="saveItem()">Save item</button><button class="btn ghost" onclick="S.edit=null;draw()">Cancel</button>'+(S.edit?'<button class="btn ghost" onclick="delItem('+S.edit+')">'+(S.del===S.edit?'Tap again to delete':'Delete')+'</button>':'')+'</div>';
   }
   S.photos=null;
-  return '<div class="acts"><button class="btn" onclick="S.edit=0;draw()">Add item</button></div>'+P.map(function(x){return '<div class="row"><div style="display:flex;gap:10px;align-items:center">'+(x.photos&&x.photos[0]?'<img class="thumb" alt="" src="'+qa(x.photos[0])+'">':'<span class="thumb">🛍️</span>')+'<div><b>'+esc(x.name)+'</b><small>'+esc(nmOf(MALLS,x.mall_id))+' · '+$(x.price)+'</small></div></div><button class="btn ghost sm" onclick="S.edit='+x.id+';S.del=null;draw()">Edit</button></div>'}).join("");
+  return '<div class="acts"><button class="btn" onclick="S.edit=0;draw()">Add item</button></div><p class="note">'+P.length+' items for sale</p><input id="iq" type="search" placeholder="Search your items" value="'+qa(S.iq||"")+'" oninput="S.iq=this.value.toLowerCase();G(\'il\').innerHTML=itemRows()"><div id="il">'+itemRows()+'</div>';
+}
+function itemRows(){
+  return P.filter(function(x){return !S.iq||x.name.toLowerCase().indexOf(S.iq)>-1}).map(function(x){return '<div class="row"><div style="display:flex;gap:10px;align-items:center">'+(x.photos&&x.photos[0]?'<img class="thumb" alt="" src="'+qa(x.photos[0])+'">':'<span class="thumb">🛍️</span>')+'<div><b>'+esc(x.name)+'</b><small>'+$(x.price)+' · '+esc(nmOf(CATS,x.category_id)||"No category")+(SOLD[x.id]?' · sold '+SOLD[x.id]:'')+'</small></div></div><button class="btn ghost sm" onclick="S.edit='+x.id+';S.del=null;draw()">Edit</button></div>'}).join("");
 }
 async function saveItem(){
   var e=G("ae"),n=G("an").value.trim(),p=parseFloat(G("ap").value);
@@ -198,7 +205,7 @@ async function saveItem(){
     for(var i=0;i<S.photos.length;i++){var f=S.photos[i];if(!f.file){urls.push(f.url);continue}
       var path="p/"+Date.now()+"-"+i+".jpg",up=await sb.storage.from("photos").upload(path,await resize(f.file),{contentType:"image/jpeg"});
       if(up.error)throw up.error;urls.push(sb.storage.from("photos").getPublicUrl(path).data.publicUrl)}
-    var row={name:n,price:p,mall_id:+G("am").value,category_id:+G("ac").value,photos:urls};
+    var row={name:n,price:p,category_id:+G("ac").value,photos:urls};
     var r=S.edit?await sb.from("products").update(row).eq("id",S.edit):await sb.from("products").insert(row);
     if(r.error)throw r.error;
     S.edit=null;await load();
@@ -208,16 +215,38 @@ async function delItem(id){if(S.del!==id){S.del=id;draw();return}await sb.from("
 function names(t,L){return '<div class="chips" style="flex-wrap:wrap;overflow:visible">'+L.map(function(c){return '<span class="chip" style="display:inline-flex;gap:8px;align-items:center">'+esc(c.name)+'<button class="xb" aria-label="Remove '+qa(c.name)+'" onclick="delName(\''+t+'\','+c.id+')">×</button></span>'}).join("")+'</div><label for="nn">New name</label><div class="acts" style="margin-top:0"><input id="nn" maxlength="40" style="flex:1;min-width:140px"><button class="btn" onclick="addName(\''+t+'\')">Add</button></div><div class="err" id="ce" role="alert"></div><p class="note">A name can only be removed when no items use it.</p>'}
 async function addName(t){var v=G("nn").value.trim();if(!v)return;var r=await sb.from(t).insert({name:v});if(r.error){G("ce").textContent="Could not add. It may already exist.";return}await load()}
 async function delName(t,id){var r=await sb.from(t).delete().eq("id",id);if(r.error){G("ce").textContent="Remove or move the items using it first.";return}await load()}
+function areasBox(){return '<h2>Delivery areas</h2>'+(AREAS.length?AREAS.map(function(a){return '<div class="row"><div><b>'+esc(a.name)+'</b><small>'+$(a.fee)+'</small></div><div class="acts" style="margin:0"><button class="btn ghost sm" onclick="editArea('+a.id+')">Edit</button><button class="btn ghost sm" onclick="delArea('+a.id+')">Remove</button></div></div>'}).join(""):'<p class="note">No areas yet, so every order pays the flat fee of '+$(CFG.fee)+'. Add areas below.</p>')+'<label for="aan">Area name</label><input id="aan" maxlength="40" placeholder="e.g. Penkwasi"><label for="aaf">Delivery fee (GH₵)</label><input id="aaf" type="number" inputmode="decimal" min="0" placeholder="15"><div class="err" id="aae" role="alert"></div><div class="acts"><button class="btn" onclick="saveArea()">Save area</button></div><p class="note">Saving a name that already exists updates its fee.</p>'}
+function editArea(id){var a=AREAS.find(function(x){return x.id===id});if(!a)return;G("aan").value=a.name;G("aaf").value=a.fee;G("aan").focus()}
+async function saveArea(){var n=G("aan").value.trim(),f=parseFloat(G("aaf").value),e=G("aae");if(!n){e.textContent="Enter the area name.";return}if(!(f>=0)){e.textContent="Enter the fee, like 15.";return}var r=await sb.from("areas").upsert({name:n,fee:f},{onConflict:"name"});if(r.error){e.textContent="Could not save. Run the areas setup in Supabase first.";return}await load()}
+async function delArea(id){await sb.from("areas").delete().eq("id",id);await load()}
+async function loadSalesData(){
+  var r=await sb.from("orders").select("*").order("id",{ascending:false}).limit(1000);
+  if(r.error)return null;
+  SOLD={};
+  r.data.forEach(function(o){if(o.status==="cancelled")return;(o.items||[]).forEach(function(i){SOLD[i.id]=(SOLD[i.id]||0)+i.qty})});
+  return r.data;
+}
+async function setStatus(id,st){var r=await sb.from("orders").update({status:st}).eq("id",id);if(!r.error){SALES=null;loadOrders()}}
+async function loadSales(){
+  var d=await loadSalesData(),el=G("sl");if(!el)return;
+  if(!d){el.textContent="Could not load sales.";return}
+  SALES=d;
+  var live=d.filter(function(o){return o.status!=="cancelled"}),done=d.filter(function(o){return o.status==="delivered"}),by={};
+  live.forEach(function(o){(o.items||[]).forEach(function(i){var b=by[i.id]||(by[i.id]={name:i.name,qty:0,amt:0});b.qty+=i.qty;b.amt+=i.qty*i.price})});
+  var L=Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){return b.qty-a.qty}),rev=L.reduce(function(t,b){return t+b.amt},0);
+  el.className="";
+  el.innerHTML='<div class="row"><span>Orders</span><b>'+live.length+'</b></div><div class="row"><span>Delivered</span><b>'+done.length+'</b></div><div class="row"><span>Value of items sold</span><b>'+$(rev)+'</b></div><p class="note">Totals leave out cancelled orders and delivery fees. Mark orders as delivered in the Orders tab.</p><h2>Sold by item</h2>'+(L.length?L.map(function(b){return '<div class="row"><div><b>'+esc(b.name)+'</b><small>'+b.qty+' sold</small></div><b>'+$(b.amt)+'</b></div>'}).join(""):'<div class="empty">No sales yet.</div>');
+}
 async function loadOrders(){
   var r=await sb.from("orders").select("*").order("id",{ascending:false}).limit(40),el=G("ol");if(!el)return;
   if(r.error){el.textContent="Could not load orders.";return}
   el.className="";
-  el.innerHTML=r.data.length?r.data.map(function(o){return '<div class="row"><div><b>'+esc(o.code)+' · '+$(o.total)+'</b><small>'+esc(o.customer)+' · <a href="tel:'+qa(o.phone)+'">'+esc(o.phone)+'</a></small><small>'+(o.items||[]).map(function(i){return esc(i.qty+" x "+i.name+" ("+i.mall+")")}).join(", ")+'</small><small>'+(o.delivery?"Deliver: "+esc(o.address):"Pickup")+' · '+esc(o.payment)+' · '+new Date(o.created_at).toLocaleString("en-GH")+'</small></div></div>'}).join(""):"No orders yet.";
+  el.innerHTML=r.data.length?r.data.map(function(o){return '<div class="row"><div><b>'+esc(o.code)+' · '+$(o.total)+'</b><small>'+esc(o.customer)+' · <a href="tel:'+qa(o.phone)+'">'+esc(o.phone)+'</a></small><small>'+(o.items||[]).map(function(i){return esc(i.qty+" x "+i.name)}).join(", ")+'</small><small>'+(o.delivery?"Deliver: "+esc(o.address):"Pickup")+' · '+esc(o.payment)+' · '+new Date(o.created_at).toLocaleString("en-GH")+'</small><small>Status: <b>'+esc(o.status||"new")+'</b></small><div class="acts" style="margin-top:6px"><button class="btn ghost sm" onclick="setStatus('+o.id+',\'delivered\')">Mark delivered</button><button class="btn ghost sm" onclick="setStatus('+o.id+',\'cancelled\')">Cancel order</button></div></div></div>'}).join(""):"No orders yet.";
 }
 
 /* ---------- render ---------- */
 function draw(){
-  app.innerHTML=({shop:shop,cart:cart,checkout:checkout,done:done,admin:admin,login:login})[S.view]();
+  app.innerHTML=({shop:shop,cart:cart,checkout:checkout,done:done,admin:admin,login:login})[S.view]()+'<p class="note" style="text-align:center;margin-top:28px">Version 6</p>';
   G("mg").textContent=S.user?(S.view==="admin"?"Back to shop":"Manage shop"):"Owner login";
   var n=count();
   if(S.view==="shop"&&n){bar.hidden=false;bar.innerHTML='<button class="btn gold" onclick="go(\'cart\')"><span>View cart ('+n+')</span><span>'+$(sub())+'</span></button>'}
@@ -225,6 +254,8 @@ function draw(){
   else if(S.view==="checkout"){bar.hidden=false;bar.innerHTML='<button class="btn gold" id="pb" onclick="place()">Place order</button>';fee()}
   else bar.hidden=true;
   if(S.view==="admin"&&S.tab==="orders")loadOrders();
+  if(S.view==="admin"&&S.tab==="sales")loadSales();
+  if(S.view==="admin"&&S.user&&SALES===null){SALES=[];loadSalesData().then(function(d){SALES=d||[];if(S.view==="admin"&&S.tab==="items"&&S.edit===null)draw()})}
 }
 G("q").addEventListener("input",function(e){S.q=e.target.value.trim().toLowerCase();if(S.view!=="shop")S.view="shop";draw()});
 (async function(){try{var s=await sb.auth.getSession();S.user=s.data.session?s.data.session.user:null}catch(x){}await load()})();
